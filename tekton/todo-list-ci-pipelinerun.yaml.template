@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: todo-list-ci-
+spec:
+  pipelineRef:
+    name: todo-list-ci-pipeline
+  params:
+    - name: buildVersion
+      value: "0.0.1"
+    - name: appGitUrl
+      value: ### Your app Git repo URL goes here ###
+    - name: appGitBranch
+      value: ### Your app Git branch name goes here (typically main or master) ###
+    - name: frontendPathToContext
+      value: "todo-list-frontend"
+    - name: frontendImageUrl
+      value: "### Your DigitalOcean Container Registry URL goes here ###/todo-list-frontend"
+    - name: backendPathToContext
+      value: "todo-list-backend"
+    - name: backendImageUrl
+      value: ""### Your DigitalOcean Container Registry URL goes here ###/todo-list-backend"
+    - name: configGitUrl
+      value: ### Your config Git repo URL goes here ###
+    - name: configGitBranch
+      value: ### Your config Git branch name goes here (typically main or master) ###
+    - name: k8sYaml
+      value: "todo-list/todo-list.yaml"
+  serviceAccountName: default
+  workspaces:
+    - name: git-source
+      persistentVolumeClaim:
+        claimName: todo-list-ci-pvc
+    - name: do-docker-config-secret
+      secret:
+        secretName: do-docker-config
+    - name: config-git-askpass-secret
+      secret:
+        secretName: config-git-askpass

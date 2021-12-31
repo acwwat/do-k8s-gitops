@@ -1,0 +1,94 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: todo-list-ci-pipeline
+spec:
+  workspaces:
+    - name: git-source
+    - name: do-docker-config-secret
+    - name: config-git-askpass-secret
+  params:
+    - name: buildVersion
+    - name: appGitUrl
+    - name: appGitBranch
+      default: main
+    - name: frontendPathToContext
+    - name: frontendImageUrl
+    - name: backendPathToContext
+    - name: backendImageUrl
+    - name: configGitUrl
+    - name: configGitBranch
+      default: main
+    - name: k8sYaml
+    - name: gitUserName
+    - name: gitUserEmail
+  tasks:
+    - name: clone-repo
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: git-source
+      params:
+        - name: url
+          value: "$(params.appGitUrl)"
+        - name: revision
+          value: "$(params.appGitBranch)"
+        - name: subdirectory
+          value: "app"
+        - name: deleteExisting
+          value: "true"
+    - name: frontend-build-image
+      taskRef:
+        name: kaniko
+      runAfter:
+        - clone-repo
+      workspaces:
+        - name: source
+          workspace: git-source
+        - name: dockerconfig
+          workspace: docker-config-secret
+      params:
+        - name: CONTEXT
+          value: app/$(params.frontendPathToContext)
+        - name: IMAGE
+          value: $(params.frontendImageUrl):$(params.buildVersion)
+    - name: backend-build-image
+      taskRef:
+        name: kaniko
+      runAfter:
+        - clone-repo
+      workspaces:
+        - name: source
+          workspace: git-source
+        - name: dockerconfig
+          workspace: do-docker-config-secret
+      params:
+        - name: CONTEXT
+          value: app/$(params.backendPathToContext)
+        - name: IMAGE
+          value: $(params.backendImageUrl):$(params.buildVersion)
+    - name: update-config
+      taskRef:
+        name: update-config
+      runAfter:
+        - frontend-build-image
+        - backend-build-image
+      workspaces:
+        - name: git-source
+          workspace: git-source
+        - name: git-askpass-secret
+          workspace: config-git-askpass-secret
+      params:
+        - name: buildVersion
+          value: "$(params.buildVersion)"
+        - name: gitUrl
+          value: "$(params.configGitUrl)"
+        - name: gitBranch
+          value: "$(params.configGitBranch)"
+        - name: k8sYaml
+          value: "$(params.k8sYaml)"
+        - name: gitUserName
+          value: "$(params.gitUserName)"
+        - name: gitUserEmail
+          value: "$(params.gitUserEmail)"

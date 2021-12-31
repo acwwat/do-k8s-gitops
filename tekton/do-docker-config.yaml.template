@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: do-docker-config
+type: kubernetes.io/dockercfgjson
+data:
+  config.json: |
+    ### Your DigitalOcean PAT goes here ###

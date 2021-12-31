@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-config
+spec:
+  params:
+  - name: buildVersion
+  - name: gitUrl
+  - name: gitBranch
+  - name: k8sYaml
+  - name: gitUserName
+  - name: gitUserEmail
+  workspaces:
+  - name: git-source
+  - name: git-askpass-secret
+  steps:
+  - name: git-checkout
+    image: alpine/git:v2.26.2
+    workingDir: "$(workspaces.git-source.path)"
+    script: |
+      #!/usr/bin/env sh
+      set -e
+      cp $(workspaces.git-askpass-secret.path)/.git-askpass ~/
+      chmod +x ~/.git-askpass
+      export GIT_ASKPASS=~/.git-askpass
+      rm -rf config
+      git clone -b $(inputs.params.gitBranch) $(inputs.params.gitUrl) config
+  - name: update-yaml
+    image: alpine/git:v2.26.2
+    workingDir: "$(workspaces.git-source.path)"
+    script: |
+      #!/usr/bin/env sh
+      set -e
+      cd config
+      sed -i "s#/todo-list-frontend:[a-zA-Z0-9.]\\+#/todo-list-frontend:$(inputs.params.buildVersion)#" $(inputs.params.k8sYaml)
+      sed -i "s#/todo-list-backend:[a-zA-Z0-9.]\\+#/todo-list-backend:$(inputs.params.buildVersion)#" $(inputs.params.k8sYaml)
+      cat $(inputs.params.k8sYaml)
+  - name: commit-push-changes-gitops
+    image: alpine/git:v2.26.2
+    workingDir: "$(workspaces.git-source.path)"
+    script: |
+      #!/usr/bin/env sh
+      set -e
+      cd config
+      cp $(workspaces.git-askpass-secret.path)/.git-askpass ~/
+      chmod +x ~/.git-askpass
+      export GIT_ASKPASS=~/.git-askpass
+      git config --global user.email "$(inputs.params.gitUserEmail)"
+      git config --global user.name "$(inputs.params.gitUserName)"
+      git add .
+      git commit --allow-empty -m "[tekton] Set deployment to version $(inputs.params.buildVersion)"
+      git push origin $(inputs.params.gitBranch)
